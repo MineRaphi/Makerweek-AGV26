@@ -1,6 +1,7 @@
 import cv2
 import cv2.aruco as aruco
 import numpy as np
+import path_algorithm as pa
 
 ID_BOTTOM_LEFT = 1
 ID_TOP_LEFT = 2
@@ -138,52 +139,46 @@ def detect_blue_lines(warped):
     return warped, mask, lines_info
 
 def create_grid(warped, cols=COLS, rows=ROWS):
-    """
-    Divides the warped image into a grid and marks each cell as:
-    0 = free
-    1 = blocked (blue line detected)
-    """
     h, w = warped.shape[:2]
-    cell_w = w // cols
-    cell_h = h // rows
 
-    # Get the blue mask
     hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
     lower_blue = np.array([100, 80, 50])
     upper_blue = np.array([130, 255, 255])
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-    # Build the grid
     grid = np.zeros((rows, cols), dtype=np.uint8)
+
+    # Use linspace to get evenly spaced boundaries that cover the full image
+    row_edges = np.linspace(0, h, rows + 1, dtype=int)
+    col_edges = np.linspace(0, w, cols + 1, dtype=int)
 
     for row in range(rows):
         for col in range(cols):
-            # Crop out this cell from the mask
-            cell = mask[row*cell_h:(row+1)*cell_h, col*cell_w:(col+1)*cell_w]
-
-            # If enough blue pixels are in this cell, mark it as blocked
-            blue_ratio = np.count_nonzero(cell) / (cell_w * cell_h)
-            if blue_ratio > 0.2:  # 20% of cell is blue → blocked
+            cell = mask[row_edges[row]:row_edges[row+1],
+                        col_edges[col]:col_edges[col+1]]
+            cell_area = cell.size
+            if cell_area == 0:
+                continue
+            blue_ratio = np.count_nonzero(cell) / cell_area
+            if blue_ratio > 0.2:
                 grid[row, col] = 1
 
     return grid
 
 def draw_grid(warped, grid, cols=COLS, rows=ROWS):
-    """Draws the grid overlay on the warped image."""
     h, w = warped.shape[:2]
-    cell_w = w // cols
-    cell_h = h // rows
+
+    row_edges = np.linspace(0, h, rows + 1, dtype=int)
+    col_edges = np.linspace(0, w, cols + 1, dtype=int)
 
     for row in range(rows):
         for col in range(cols):
-            x1, y1 = col * cell_w, row * cell_h
-            x2, y2 = x1 + cell_w, y1 + cell_h
+            x1, y1 = col_edges[col],   row_edges[row]
+            x2, y2 = col_edges[col+1], row_edges[row+1]
 
             if grid[row, col] == 1:
-                # Red overlay for blocked cells
                 cv2.rectangle(warped, (x1, y1), (x2, y2), (0, 0, 255), -1)
             else:
-                # Just draw the grid lines for free cells
                 cv2.rectangle(warped, (x1, y1), (x2, y2), (50, 50, 50), 1)
 
     return warped
@@ -214,10 +209,16 @@ while True:
         print(f"Blue line at angle: {line['angle']:.1f}°")
 
     grid   = create_grid(warped)
+    dist_map = pa.compute_distance_map(grid)
+
+    start = (ROWS // 2, 0)
+
+    path = pa.astar(grid, start, dist_map, clearance_weight=6.0)
+
     warped = draw_grid(warped, grid)
+    warped = pa.draw_path(cv2, warped, path, grid, COLS, ROWS)
 
     cv2.imshow("Warped", warped)
-    cv2.imshow("Blue Mask", mask)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
