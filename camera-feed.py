@@ -72,7 +72,6 @@ def draw_marker_direction(marker_id):
 
     print(f"Marker {marker_id} pointing at {angle:.1f}°")
 
-
 def flatten_image():
     # After detecting markers, collect the center (or a specific corner) of each ArUco
     # You need to map each marker ID to a role: top-left, top-right, etc.
@@ -93,7 +92,48 @@ def flatten_image():
 
     return warped
 
+def detect_blue_lines(warped):
+    hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
 
+    # Blue range in HSV
+    lower_blue = np.array([100, 80, 50])
+    upper_blue = np.array([130, 255, 255])
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    # Clean up noise
+    kernel = np.ones((5, 5), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)   # remove speckles
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)  # fill gaps
+
+    # Find the lines within the mask
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    lines_info = []
+    for cnt in contours:
+        if cv2.contourArea(cnt) < 500:  # ignore tiny blobs
+            continue
+
+        # Fit a line through the contour
+        [vx, vy, x, y] = cv2.fitLine(cnt, cv2.DIST_L2, 0, 0.01, 0.01)
+        angle = np.degrees(np.arctan2(float(vy[0]), float(vx[0])))
+
+        # Draw the line across the full contour bounding box
+        x1, y1, w, h = cv2.boundingRect(cnt)
+        x2, y2 = x1 + w, y1 + h
+        cv2.line(warped, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        # Draw the angle
+        cv2.putText(warped, f"{float(angle):.1f}deg",
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+        lines_info.append({
+            "angle": float(angle),
+            "center": (int(x[0]), int(y[0])),
+            "contour": cnt,
+        })
+
+    return warped, mask, lines_info
 
 # Pick the dictionary that matches your printed markers
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
@@ -116,7 +156,13 @@ while True:
     # 3. Warp to flat view
     warped = flatten_image()
 
-    cv2.imshow("ArUco Detection", warped)
+    warped, mask, lines = detect_blue_lines(warped)
+    for line in lines:
+        print(f"Blue line at angle: {line['angle']:.1f}°")
+
+    cv2.imshow("Raw Feed", frame)
+    cv2.imshow("Warped", warped)
+    cv2.imshow("Blue Mask", mask)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
