@@ -7,7 +7,7 @@ ID_TOP_LEFT = 2
 ID_TOP_RIGHT = 3
 ID_BOTTOM_RIGHT = 4
 
-AGV_MARKER_ID = 8
+AGV_MARKER_ID = 21
 
 # --- Setup ---
 stream_url = "http://10.250.150.224:8081"
@@ -40,9 +40,9 @@ def get_marker_direction(marker_id):
     # Rotate which sides we use to define "forward"
     # Original: top of marker = forward
     # Swap to:  right of marker = forward  (fixes 90° offset)
-    right_center = (tr + br) / 2
-    left_center  = (tl + bl) / 2
-    direction    = right_center - left_center  # now points "right" on the marker
+    top_center    = (tl + tr) / 2
+    bottom_center = (bl + br) / 2
+    direction     = top_center - bottom_center
 
     center = (tl + tr + br + bl) / 4
     tip    = center + direction * 1.5
