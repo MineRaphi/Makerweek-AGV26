@@ -8,6 +8,8 @@ ID_TOP_RIGHT = 3
 ID_BOTTOM_RIGHT = 4
 
 AGV_MARKER_ID = 21
+COLS = 40
+ROWS = 30
 
 # --- Setup ---
 stream_url = "http://10.250.150.224:8081"
@@ -135,6 +137,57 @@ def detect_blue_lines(warped):
 
     return warped, mask, lines_info
 
+def create_grid(warped, cols=COLS, rows=ROWS):
+    """
+    Divides the warped image into a grid and marks each cell as:
+    0 = free
+    1 = blocked (blue line detected)
+    """
+    h, w = warped.shape[:2]
+    cell_w = w // cols
+    cell_h = h // rows
+
+    # Get the blue mask
+    hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
+    lower_blue = np.array([100, 80, 50])
+    upper_blue = np.array([130, 255, 255])
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    # Build the grid
+    grid = np.zeros((rows, cols), dtype=np.uint8)
+
+    for row in range(rows):
+        for col in range(cols):
+            # Crop out this cell from the mask
+            cell = mask[row*cell_h:(row+1)*cell_h, col*cell_w:(col+1)*cell_w]
+
+            # If enough blue pixels are in this cell, mark it as blocked
+            blue_ratio = np.count_nonzero(cell) / (cell_w * cell_h)
+            if blue_ratio > 0.2:  # 20% of cell is blue → blocked
+                grid[row, col] = 1
+
+    return grid
+
+def draw_grid(warped, grid, cols=COLS, rows=ROWS):
+    """Draws the grid overlay on the warped image."""
+    h, w = warped.shape[:2]
+    cell_w = w // cols
+    cell_h = h // rows
+
+    for row in range(rows):
+        for col in range(cols):
+            x1, y1 = col * cell_w, row * cell_h
+            x2, y2 = x1 + cell_w, y1 + cell_h
+
+            if grid[row, col] == 1:
+                # Red overlay for blocked cells
+                cv2.rectangle(warped, (x1, y1), (x2, y2), (0, 0, 255), -1)
+            else:
+                # Just draw the grid lines for free cells
+                cv2.rectangle(warped, (x1, y1), (x2, y2), (50, 50, 50), 1)
+
+    return warped
+
 # Pick the dictionary that matches your printed markers
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 parameters = aruco.DetectorParameters()
@@ -160,7 +213,9 @@ while True:
     for line in lines:
         print(f"Blue line at angle: {line['angle']:.1f}°")
 
-    cv2.imshow("Raw Feed", frame)
+    grid   = create_grid(warped)
+    warped = draw_grid(warped, grid)
+
     cv2.imshow("Warped", warped)
     cv2.imshow("Blue Mask", mask)
     if cv2.waitKey(1) & 0xFF == ord('q'):
