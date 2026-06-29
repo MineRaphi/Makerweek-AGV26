@@ -2,6 +2,7 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 import path_algorithm as pa
+import drive as d
 
 ID_BOTTOM_LEFT = 1
 ID_TOP_LEFT = 2
@@ -214,6 +215,23 @@ while True:
     start = (ROWS // 2, 0)
 
     path = pa.astar(grid, start, dist_map, clearance_weight=6.0)
+
+    # --- AGV ansteuern ---
+    result = get_marker_direction(AGV_MARKER_ID)
+    if result is not None:
+        agv_angle, agv_center, agv_tip = result
+ 
+        h, w = warped.shape[:2]
+        row_edges = np.linspace(0, h, ROWS + 1, dtype=int)
+        col_edges = np.linspace(0, w, COLS + 1, dtype=int)
+        grid_to_pixel = lambda r, c: (
+            (col_edges[c] + col_edges[c+1]) // 2,
+            (row_edges[r] + row_edges[r+1]) // 2,
+        )
+ 
+        d.follow_path(path, agv_angle, agv_center, grid_to_pixel)
+    else:
+        d.send_velocity(0, 0)
 
     warped = draw_grid(warped, grid)
     warped = pa.draw_path(cv2, warped, path, grid, COLS, ROWS)
