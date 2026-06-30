@@ -3,10 +3,13 @@ import path_algorithm as pa
 import drive as d
 
 AGV_MARKER_ID = 21
-COLS = 40
-ROWS = 30
+COLS = 80
+ROWS = 60
 
-d.enable_wheels()
+try:
+    d.enable_wheels()
+except:
+    print("No AGV connection")
 
 while True:
     ret, frame = cf.cap.read()
@@ -25,8 +28,6 @@ while True:
     warped, M = cf.flatten_image(frame)
 
     warped, mask, lines = cf.detect_blue_lines(warped)
-    for line in lines:
-        print(f"Blue line at angle: {line['angle']:.1f}°")
 
     grid   = cf.create_grid(warped, COLS, ROWS)
     dist_map = pa.compute_distance_map(grid)
@@ -62,7 +63,7 @@ while True:
             current_angle = agv_dir[0]
             turn_amount = target_angle - current_angle
             turn_amount = (turn_amount + 180) % 360 - 180  # normalize to -180..180
-            print(f"Turn by: {turn_amount:.1f}°")
+            print(f"Direction off by: {turn_amount:.1f}°")
 
             if turn_amount > 5 or turn_amount < -5:
                 d.rotate(turn_amount * 0.9)
