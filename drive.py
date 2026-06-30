@@ -2,9 +2,13 @@ import requests
 import numpy as np
 
 AGV_BASE_URL = "http://172.17.1.42/api/agv"
+
 # distance in mm
 WHEEL_DIAMETER = 95
 WHEEL_DISTANCE = 210 
+
+# steps for one rotation
+MAX_STEPS = 3550
 
 def enable_wheels():
     response = requests.post(
@@ -52,3 +56,10 @@ def set_step(left, right):
         }
     )
     return response
+
+def angletostep(angle):
+    steps = ((WHEEL_DISTANCE * angle) / (WHEEL_DIAMETER * 360)) * MAX_STEPS
+    return steps
+
+enable_wheels()
+set_step(-angletostep(90), angletostep(90))
