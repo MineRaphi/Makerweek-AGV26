@@ -1,5 +1,4 @@
 import requests
-import numpy as np
 import random
 
 AGV_BASE_URL = "http://172.17.1.42/api/agv"

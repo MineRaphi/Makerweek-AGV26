@@ -1,8 +1,6 @@
 import cv2
 import cv2.aruco as aruco
 import numpy as np
-import path_algorithm as pa
-import drive as d
 
 ID_BOTTOM_LEFT = 1
 ID_TOP_LEFT = 2
