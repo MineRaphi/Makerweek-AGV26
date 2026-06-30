@@ -9,6 +9,7 @@ WHEEL_DISTANCE = 210
 
 # steps for one rotation
 MAX_STEPS = 3550
+STEPS_PER_DEGREE = 10
 
 def enable_wheels():
     response = requests.post(
@@ -58,8 +59,8 @@ def set_step(left, right):
     return response
 
 def angletostep(angle):
-    steps = ((WHEEL_DISTANCE * angle) / (WHEEL_DIAMETER * 360)) * MAX_STEPS
-    return steps
+    steps = angle * STEPS_PER_DEGREE
+    return int(round(steps))
 
 enable_wheels()
 set_step(-angletostep(90), angletostep(90))
