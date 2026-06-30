@@ -6,7 +6,10 @@ AGV_MARKER_ID = 21
 COLS = 40
 ROWS = 30
 
-d.enable_wheels()
+try:
+    d.enable_wheels()
+except:
+    print("No AGV connection")
 
 while True:
     ret, frame = cf.cap.read()
