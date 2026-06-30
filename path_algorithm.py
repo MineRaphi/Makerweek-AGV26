@@ -25,7 +25,6 @@ def compute_distance_map(grid):
 
     return dist
 
-
 def astar(grid, start, dist_map, clearance_weight=3.0):
     """
     A* from start to ANY cell on the right edge.
@@ -78,8 +77,6 @@ def astar(grid, start, dist_map, clearance_weight=3.0):
 
     return None
 
-
-
 def draw_path(cv2, warped, path, grid, cols=20, rows=20):
     if path is None:
         cv2.putText(warped, "No path found!", (20, 40),
@@ -111,3 +108,50 @@ def draw_path(cv2, warped, path, grid, cols=20, rows=20):
     cv2.circle(warped, cell_center(gr, gc), 8, (0, 0, 255), -1)
 
     return warped
+
+def get_next_segment(path, current_pos, grid_shape, warped_shape, cols, rows, lookahead=3):
+    """
+    Given the current path and the AGV's current grid position,
+    returns the angle and distance to steer towards.
+
+    lookahead: how many cells ahead on the path to target
+               (helps smooth out steering instead of chasing the very next cell)
+
+    Returns: (angle_degrees, distance_pixels, target_cell) or None if path is too short
+    """
+    if path is None or len(path) < 2:
+        return None
+    
+    if current_pos is None:
+        return None  # AGV marker not detected this frame
+
+    # Find the closest point on the path to where the AGV currently is
+    closest_idx = min(
+        range(len(path)),
+        key=lambda i: (path[i][0]-current_pos[0])**2 + (path[i][1]-current_pos[1])**2
+    )
+
+    # Look ahead a few cells from the closest point (clamped to path length)
+    target_idx = min(closest_idx + lookahead, len(path) - 1)
+    target_cell = path[target_idx]
+
+    # Convert both points from grid coords to pixel coords (warped image space)
+    h, w = warped_shape[:2]
+    row_edges = np.linspace(0, h, rows + 1, dtype=int)
+    col_edges = np.linspace(0, w, cols + 1, dtype=int)
+
+    def cell_center(r, c):
+        cx = (col_edges[c] + col_edges[c+1]) // 2
+        cy = (row_edges[r] + row_edges[r+1]) // 2
+        return cx, cy
+
+    cur_x, cur_y = cell_center(*current_pos)
+    tgt_x, tgt_y = cell_center(*target_cell)
+
+    dx = tgt_x - cur_x
+    dy = tgt_y - cur_y
+
+    distance = np.hypot(dx, dy)
+    angle = np.degrees(np.arctan2(-dy, dx))  # 0° = right, 90° = up (matches your marker angle convention)
+
+    return angle, distance, target_cell
