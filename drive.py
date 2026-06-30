@@ -1,12 +1,17 @@
 import requests
 import numpy as np
 import random
+import main as m
 
 AGV_BASE_URL = "http://172.17.1.42/api/agv"
 
 # distance in mm
 WHEEL_DIAMETER = 95
-WHEEL_DISTANCE = 210 
+WHEEL_DISTANCE = 210
+
+# distance between aruco codes
+MAX_COL = 288
+MAX_ROW = 188
 
 # steps for one rotation
 MAX_STEPS = 3550
