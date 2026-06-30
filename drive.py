@@ -1,5 +1,6 @@
 import requests
 import numpy as np
+import random
 
 AGV_BASE_URL = "http://172.17.1.42/api/agv"
 
@@ -62,5 +63,9 @@ def angletostep(angle):
     steps = angle * STEPS_PER_DEGREE
     return int(round(steps))
 
-enable_wheels()
-set_step(-angletostep(90), angletostep(90))
+def rotate(angle):
+    move_steps(-angletostep(angle), angletostep(angle))
+
+if __name__ == "__main__":
+    enable_wheels()
+    rotate(random.randint(60, 250))

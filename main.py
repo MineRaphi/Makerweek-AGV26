@@ -6,6 +6,8 @@ AGV_MARKER_ID = 21
 COLS = 40
 ROWS = 30
 
+d.enable_wheels()
+
 while True:
     ret, frame = cf.cap.read()
     if not ret:
@@ -61,6 +63,9 @@ while True:
             turn_amount = target_angle - current_angle
             turn_amount = (turn_amount + 180) % 360 - 180  # normalize to -180..180
             print(f"Turn by: {turn_amount:.1f}°")
+
+            if turn_amount > 5 or turn_amount < -5:
+                d.rotate(turn_amount * 0.9)
 
     cf.cv2.imshow("Warped", warped)
     if cf.cv2.waitKey(1) & 0xFF == ord('q'):
