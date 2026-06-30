@@ -9,9 +9,6 @@ ID_TOP_LEFT = 2
 ID_TOP_RIGHT = 3
 ID_BOTTOM_RIGHT = 4
 
-AGV_MARKER_ID = 21
-COLS = 40
-ROWS = 30
 LOWER_BLUE = np.array([100, 100, 200])
 UPPER_BLUE = np.array([130, 200, 255])
 
@@ -21,7 +18,7 @@ cap = cv2.VideoCapture(stream_url)
 marker_centers = {}
 marker_corners = {}
 
-def detect_markers():
+def detect_markers(frame, gray):
     corners, ids, rejected = detector.detectMarkers(gray)
 
     if ids is not None:
@@ -56,7 +53,7 @@ def get_marker_direction(marker_id):
 
     return angle, center.astype(int), tip.astype(int)
 
-def draw_marker_direction(marker_id):
+def draw_marker_direction(marker_id, frame):
     """Draw a direction arrow and angle label for the given marker."""
     result = get_marker_direction(marker_id)
     if result is None:
@@ -78,7 +75,7 @@ def draw_marker_direction(marker_id):
 
     print(f"Marker {marker_id} pointing at {angle:.1f}°")
 
-def flatten_image():
+def flatten_image(frame):
     # After detecting markers, collect the center (or a specific corner) of each ArUco
     # You need to map each marker ID to a role: top-left, top-right, etc.
     src_points = np.float32([
@@ -141,7 +138,7 @@ def detect_blue_lines(warped):
 
     return warped, mask, lines_info
 
-def create_grid(warped, cols=COLS, rows=ROWS):
+def create_grid(warped, cols, rows):
     h, w = warped.shape[:2]
 
     hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
@@ -168,7 +165,7 @@ def create_grid(warped, cols=COLS, rows=ROWS):
 
     return grid
 
-def draw_grid(warped, grid, cols=COLS, rows=ROWS):
+def draw_grid(warped, grid, cols, rows):
     h, w = warped.shape[:2]
 
     row_edges = np.linspace(0, h, rows + 1, dtype=int)
@@ -186,7 +183,7 @@ def draw_grid(warped, grid, cols=COLS, rows=ROWS):
 
     return warped
 
-def get_agv_pos(marker_id, warped_shape, cols=COLS, rows=ROWS):
+def get_agv_pos(marker_id, warped_shape, cols, rows):
     """
     Returns (row, col) grid position of the given marker,
     or None if the marker isn't currently detected.
@@ -212,7 +209,7 @@ def warp_point(point, M):
     warped_pt = cv2.perspectiveTransform(px, M)
     return warped_pt[0][0]  # (x, y)
 
-def marker_to_grid(marker_id, M, warped_shape, cols=COLS, rows=ROWS):
+def marker_to_grid(marker_id, M, warped_shape, cols, rows):
     """
     Returns (row, col) grid position of the given marker in the WARPED image,
     or None if the marker isn't currently detected.
@@ -237,46 +234,3 @@ def marker_to_grid(marker_id, M, warped_shape, cols=COLS, rows=ROWS):
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 parameters = aruco.DetectorParameters()
 detector = aruco.ArucoDetector(aruco_dict, parameters)
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-     # 1. Detect all markers on the raw frame
-    detect_markers()
-
-    # 2. Draw direction arrow for your chosen marker (on raw frame)
-    draw_marker_direction(AGV_MARKER_ID)
-
-    # 3. Warp to flat view
-    warped, M = flatten_image()
-
-    warped, mask, lines = detect_blue_lines(warped)
-    for line in lines:
-        print(f"Blue line at angle: {line['angle']:.1f}°")
-
-    grid   = create_grid(warped)
-    dist_map = pa.compute_distance_map(grid)
-
-    agv_pos = marker_to_grid(AGV_MARKER_ID, M, warped.shape, COLS, ROWS)
-
-    if agv_pos is not None:
-        start = agv_pos
-    else:
-        start = (ROWS // 2, 0)  # fallback if marker not visible
-
-    path = pa.astar(grid, start, dist_map, clearance_weight=6.0)
-
-    warped = draw_grid(warped, grid)
-    warped = pa.draw_path(cv2, warped, path, grid, COLS, ROWS)
-
-    cv2.imshow("Warped", warped)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-
