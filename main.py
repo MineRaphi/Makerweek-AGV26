@@ -28,8 +28,6 @@ while True:
     warped, M = cf.flatten_image(frame)
 
     warped, mask, lines = cf.detect_blue_lines(warped)
-    for line in lines:
-        print(f"Blue line at angle: {line['angle']:.1f}°")
 
     grid   = cf.create_grid(warped, COLS, ROWS)
     dist_map = pa.compute_distance_map(grid)
@@ -65,7 +63,7 @@ while True:
             current_angle = agv_dir[0]
             turn_amount = target_angle - current_angle
             turn_amount = (turn_amount + 180) % 360 - 180  # normalize to -180..180
-            print(f"Turn by: {turn_amount:.1f}°")
+            print(f"Direction off by: {turn_amount:.1f}°")
 
             if turn_amount > 5 or turn_amount < -5:
                 d.rotate(turn_amount * 0.9)
