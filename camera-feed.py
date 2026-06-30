@@ -12,6 +12,8 @@ ID_BOTTOM_RIGHT = 4
 AGV_MARKER_ID = 21
 COLS = 40
 ROWS = 30
+LOWER_BLUE = np.array([100, 100, 200])
+UPPER_BLUE = np.array([130, 200, 255])
 
 # --- Setup ---
 stream_url = "http://10.250.150.224:8081"
@@ -94,14 +96,14 @@ def flatten_image():
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     warped = cv2.warpPerspective(frame, M, (w, h))
 
-    return warped
+    return warped, M
 
 def detect_blue_lines(warped):
     hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
 
     # Blue range in HSV
-    lower_blue = np.array([100, 130, 50])
-    upper_blue = np.array([130, 200, 255])
+    lower_blue = LOWER_BLUE
+    upper_blue = UPPER_BLUE
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
     # Clean up noise
@@ -143,8 +145,8 @@ def create_grid(warped, cols=COLS, rows=ROWS):
     h, w = warped.shape[:2]
 
     hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
-    lower_blue = np.array([100, 80, 50])
-    upper_blue = np.array([130, 255, 255])
+    lower_blue = LOWER_BLUE
+    upper_blue = UPPER_BLUE
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
     grid = np.zeros((rows, cols), dtype=np.uint8)
@@ -184,6 +186,53 @@ def draw_grid(warped, grid, cols=COLS, rows=ROWS):
 
     return warped
 
+def get_agv_pos(marker_id, warped_shape, cols=COLS, rows=ROWS):
+    """
+    Returns (row, col) grid position of the given marker,
+    or None if the marker isn't currently detected.
+    """
+    if marker_id not in marker_centers:
+        return None
+
+    x, y = marker_centers[marker_id]
+    h, w = warped_shape[:2]
+
+    col = int(x / w * cols)
+    row = int(y / h * rows)
+
+    # Clamp in case the marker is right at the edge
+    col = min(max(col, 0), cols - 1)
+    row = min(max(row, 0), rows - 1)
+
+    return (row, col)
+
+def warp_point(point, M):
+    """Transforms a single (x, y) point through the perspective matrix M."""
+    px = np.array([[point]], dtype=np.float32)  # shape (1, 1, 2)
+    warped_pt = cv2.perspectiveTransform(px, M)
+    return warped_pt[0][0]  # (x, y)
+
+def marker_to_grid(marker_id, M, warped_shape, cols=COLS, rows=ROWS):
+    """
+    Returns (row, col) grid position of the given marker in the WARPED image,
+    or None if the marker isn't currently detected.
+    """
+    if marker_id not in marker_centers:
+        return None
+
+    raw_point = marker_centers[marker_id]
+    warped_x, warped_y = warp_point(raw_point, M)
+
+    h, w = warped_shape[:2]
+
+    col = int(warped_x / w * cols)
+    row = int(warped_y / h * rows)
+
+    col = min(max(col, 0), cols - 1)
+    row = min(max(row, 0), rows - 1)
+
+    return (row, col)
+
 # Pick the dictionary that matches your printed markers
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 parameters = aruco.DetectorParameters()
@@ -203,7 +252,7 @@ while True:
     draw_marker_direction(AGV_MARKER_ID)
 
     # 3. Warp to flat view
-    warped = flatten_image()
+    warped, M = flatten_image()
 
     warped, mask, lines = detect_blue_lines(warped)
     for line in lines:
@@ -212,26 +261,14 @@ while True:
     grid   = create_grid(warped)
     dist_map = pa.compute_distance_map(grid)
 
-    start = (ROWS // 2, 0)
+    agv_pos = marker_to_grid(AGV_MARKER_ID, M, warped.shape, COLS, ROWS)
+
+    if agv_pos is not None:
+        start = agv_pos
+    else:
+        start = (ROWS // 2, 0)  # fallback if marker not visible
 
     path = pa.astar(grid, start, dist_map, clearance_weight=6.0)
-
-    # --- AGV ansteuern ---
-    result = get_marker_direction(AGV_MARKER_ID)
-    if result is not None:
-        agv_angle, agv_center, agv_tip = result
- 
-        h, w = warped.shape[:2]
-        row_edges = np.linspace(0, h, ROWS + 1, dtype=int)
-        col_edges = np.linspace(0, w, COLS + 1, dtype=int)
-        grid_to_pixel = lambda r, c: (
-            (col_edges[c] + col_edges[c+1]) // 2,
-            (row_edges[r] + row_edges[r+1]) // 2,
-        )
- 
-        d.follow_path(path, agv_angle, agv_center, grid_to_pixel)
-    else:
-        d.send_velocity(0, 0)
 
     warped = draw_grid(warped, grid)
     warped = pa.draw_path(cv2, warped, path, grid, COLS, ROWS)
