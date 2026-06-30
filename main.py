@@ -67,6 +67,8 @@ while True:
 
             if turn_amount > 5 or turn_amount < -5:
                 d.rotate(turn_amount * 0.9)
+            else:
+                d.move_mm(distance * d.PIXEL_PER_MM)
 
     cf.cv2.imshow("Warped", warped)
     if cf.cv2.waitKey(1) & 0xFF == ord('q'):

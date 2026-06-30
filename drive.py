@@ -17,7 +17,8 @@ MAX_STEPS = 3550
 STEPS_PER_DEGREE = 10
 
 # steps for one motor rotation
-STEPS_PER_MM = 5.33333
+STEPS_PER_MM = 5.333
+PIXEL_PER_MM = 6.944
 
 def enable_wheels():
     response = requests.post(

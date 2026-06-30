@@ -12,7 +12,7 @@ ID_BOTTOM_RIGHT = 4
 LOWER_BLUE = np.array([100, 100, 200])
 UPPER_BLUE = np.array([130, 200, 255])
 WARP_WIDTH = 2000
-WARP_HEIGHT = 1200
+WARP_HEIGHT = 1300
 
 # --- Setup ---
 stream_url = "http://10.250.150.224:8081"
