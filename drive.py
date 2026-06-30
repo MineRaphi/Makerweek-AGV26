@@ -1,7 +1,6 @@
 import requests
 import numpy as np
 import random
-import main as m
 
 AGV_BASE_URL = "http://172.17.1.42/api/agv"
 
@@ -13,9 +12,12 @@ WHEEL_DISTANCE = 210
 MAX_COL = 288
 MAX_ROW = 188
 
-# steps for one rotation
+# steps for one agv rotation
 MAX_STEPS = 3550
 STEPS_PER_DEGREE = 10
+
+# steps for one motor rotation
+STEPS_PER_MM = 5.33333
 
 def enable_wheels():
     response = requests.post(
@@ -70,6 +72,9 @@ def angletostep(angle):
 
 def rotate(angle):
     move_steps(-angletostep(angle), angletostep(angle))
+
+def move_mm(distance):
+    move_steps(int(distance * STEPS_PER_MM), int(distance * STEPS_PER_MM))
 
 if __name__ == "__main__":
     enable_wheels()
