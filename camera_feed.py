@@ -11,6 +11,8 @@ ID_BOTTOM_RIGHT = 4
 
 LOWER_BLUE = np.array([100, 100, 200])
 UPPER_BLUE = np.array([130, 200, 255])
+WARP_WIDTH = 2000
+WARP_HEIGHT = 1200
 
 # --- Setup ---
 stream_url = "http://10.250.150.224:8081"
@@ -86,7 +88,7 @@ def flatten_image(frame):
     ])
 
     # Define where you want those points to land in the output image
-    w, h = 1000, 600
+    w, h = WARP_WIDTH, WARP_HEIGHT
     dst_points = np.float32([[0,0], [w,0], [w,h], [0,h]])
 
     # Compute the transform and apply it

@@ -3,8 +3,8 @@ import path_algorithm as pa
 import drive as d
 
 AGV_MARKER_ID = 21
-COLS = 40
-ROWS = 30
+COLS = 80
+ROWS = 60
 
 try:
     d.enable_wheels()
