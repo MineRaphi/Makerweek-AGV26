@@ -1,6 +1,9 @@
 import camera_feed as cf
 import path_algorithm as pa
 import drive as d
+import csv
+import os
+from datetime import datetime
 
 # --- Configuration ---
 AGV_MARKER_ID = 21   # ArUco ID printed on the AGV itself (used to track its position/heading)
@@ -8,6 +11,28 @@ COLS = 80            # number of grid columns to divide the playing field into
 ROWS = 60            # number of grid rows to divide the playing field into
 
 turn_counter = 0
+
+# --- CSV log file setup ---
+# Creates a new log file each run, named with the current timestamp
+log_filename = f"logs/log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+log_file = open(log_filename, "w", newline="")
+log_writer = csv.writer(log_file)
+
+# Write the header row
+log_writer.writerow([
+    "timestamp",
+    "agv_grid_row", "agv_grid_col",
+    "agv_angle",
+    "target_angle", "target_distance",
+    "target_cell_row", "target_cell_col",
+    "turn_amount",
+    "action",            # "rotate" or "move" or "none"
+    "action_value",      # the actual degrees turned or mm driven
+    "path_length",       # number of cells in the computed path
+    "blue_lines_found",  # how many blue line contours were detected
+    "marker_ids_visible" # comma-separated list of detected marker IDs
+])
+
 
 # --- Connect to the AGV's motor controller ---
 try:
@@ -64,6 +89,17 @@ while True:
     warped = cf.draw_grid(warped, grid, COLS, ROWS)
     warped = pa.draw_path(cf.cv2, warped, path, grid, COLS, ROWS)
 
+    # --- Collect data for this frame ---
+    timestamp       = datetime.now().isoformat()
+    agv_angle       = None
+    target_angle    = None
+    target_distance = None
+    target_cell     = None
+    turn_amount     = None
+    action          = "none"
+    action_value    = None
+    segment         = None
+
     # 10. Compute the next steering target along the path (angle + distance to aim for)
     if agv_pos is not None:
         segment = pa.get_next_segment(path, agv_pos, grid.shape, warped.shape, COLS, ROWS, lookahead=6)
@@ -100,6 +136,28 @@ while True:
                 else:
                     # Heading is close enough — drive forward towards the target
                     d.move_mm(distance * d.PIXEL_PER_MM)
+
+    # --- Write one row to the log ---
+    log_writer.writerow([
+        timestamp,
+        agv_pos[0] if agv_pos else "",   # agv_grid_row
+        agv_pos[1] if agv_pos else "",   # agv_grid_col
+        round(agv_angle, 2) if agv_angle is not None else "",
+        round(target_angle, 2) if target_angle is not None else "",
+        round(target_distance, 2) if target_distance is not None else "",
+        target_cell[0] if target_cell else "",  # target_cell_row
+        target_cell[1] if target_cell else "",  # target_cell_col
+        round(turn_amount, 2) if turn_amount is not None else "",
+        action,
+        action_value if action_value is not None else "",
+        len(path) if path is not None else 0,
+        len(lines),
+        # Marker IDs currently visible, as a space-separated string
+        " ".join(str(k) for k in cf.marker_centers.keys()),
+    ])
+
+    # Flush every frame so data isn't lost if the program crashes
+    log_file.flush()
 
     # 12. Show the processed frame with grid, path, and overlays
     cf.cv2.imshow("Warped", warped)
