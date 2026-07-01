@@ -7,7 +7,8 @@ from config import *
 turn_counter = 0
 
 # --- Start logger (writes to a "logs/" subfolder) ---
-logger.init(log_dir=LOG_DIR)
+if LOGGING_ENABLED:
+    logger.init(log_dir=LOG_DIR)
 
 # --- Connect to the AGV's motor controller ---
 try:
@@ -44,7 +45,6 @@ while True:
     grid = cf.create_grid(warped, COLS, ROWS)
 
     # 5.5 Hindernisse aufblasen damit das Auto nicht zu nah an die Linie fährt
-    INFLATION_RADIUS = 2
     kernel = cf.cv2.getStructuringElement(cf.cv2.MORPH_RECT, (2 * INFLATION_RADIUS + 1, 2 * INFLATION_RADIUS + 1))
     inflated_grid = cf.cv2.dilate(grid.astype('uint8'), kernel, iterations=1)
 
@@ -117,19 +117,20 @@ while True:
                     d.move_mm(distance * d.PIXEL_PER_MM)
 
     # --- Log this frame ---
-    logger.write_frame(
-        agv_pos        = agv_pos,
-        agv_angle      = agv_angle,
-        target_angle   = target_angle,
-        target_distance= target_distance,
-        target_cell    = target_cell,
-        turn_amount    = turn_amount,
-        action         = action,
-        action_value   = action_value,
-        path           = path,
-        lines          = lines,
-        marker_centers = cf.marker_centers,
-    )
+    if LOGGING_ENABLED:
+        logger.write_frame(
+            agv_pos        = agv_pos,
+            agv_angle      = agv_angle,
+            target_angle   = target_angle,
+            target_distance= target_distance,
+            target_cell    = target_cell,
+            turn_amount    = turn_amount,
+            action         = action,
+            action_value   = action_value,
+            path           = path,
+            lines          = lines,
+            marker_centers = cf.marker_centers,
+        )
 
     # 12. Show the processed frame with grid, path, and overlays
     cf.cv2.imshow("Warped", warped)
@@ -139,6 +140,7 @@ while True:
         break
 
 # --- Cleanup ---
-logger.close()
+if LOGGING_ENABLED:
+    logger.close()
 cf.cap.release()
 cf.cv2.destroyAllWindows()
