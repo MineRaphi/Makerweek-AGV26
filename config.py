@@ -3,7 +3,7 @@ import numpy as np
 AGV_MARKER_ID = 21   # ArUco ID printed on the AGV itself (used to track its position/heading)
 COLS = 80            # number of grid columns to divide the playing field into
 ROWS = 60            # number of grid rows to divide the playing field into
-INFLATION_RADIUS = 2 # radius increase around obstacles
+INFLATION_RADIUS = 4 # radius increase around obstacles
 
 # --- ArUco marker IDs that mark the four corners of the playing field ---
 # These are used to compute the perspective warp
