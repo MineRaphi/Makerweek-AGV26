@@ -144,3 +144,4 @@ if LOGGING_ENABLED:
     logger.close()
 cf.cap.release()
 cf.cv2.destroyAllWindows()
+d.disable_wheels()
