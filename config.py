@@ -13,7 +13,7 @@ ID_TOP_RIGHT = 3
 ID_BOTTOM_RIGHT = 4
 
 # --- HSV color range used to detect the blue obstacle lines ---
-LOWER_BLUE = np.array([100, 100, 200])
+LOWER_BLUE = np.array([100, 100, 180])
 UPPER_BLUE = np.array([130, 200, 255])
 
 # --- Output size (in pixels) of the flattened/warped top-down view ---
