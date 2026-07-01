@@ -43,9 +43,14 @@ while True:
     # 5. Convert the warped image into a grid: 0 = free cell, 1 = blocked (blue line)
     grid = cf.create_grid(warped, COLS, ROWS)
 
+    # 5.5 Hindernisse aufblasen damit das Auto nicht zu nah an die Linie fährt
+    INFLATION_RADIUS = 2
+    kernel = cf.cv2.getStructuringElement(cf.cv2.MORPH_RECT, (2 * INFLATION_RADIUS + 1, 2 * INFLATION_RADIUS + 1))
+    inflated_grid = cf.cv2.dilate(grid.astype('uint8'), kernel, iterations=1)
+
     # 6. Compute how far every free cell is from the nearest obstacle/edge
     #    Used by A* to prefer paths that stay away from walls
-    dist_map = pa.compute_distance_map(grid)
+    dist_map = pa.compute_distance_map(inflated_grid)
 
     # 7. Find the AGV's current position on the grid (using its marker, mapped through M)
     agv_pos = cf.marker_to_grid(AGV_MARKER_ID, M, warped.shape, COLS, ROWS)
@@ -58,11 +63,11 @@ while True:
 
     # 8. Run A* pathfinding from the AGV's position to any cell on the right edge,
     #    preferring routes with more clearance from obstacles (clearance_weight)
-    path = pa.astar(grid, start, dist_map, clearance_weight=6.0)
+    path = pa.astar(inflated_grid, start, dist_map, clearance_weight=6.0)
 
     # 9. Draw the grid and the computed path onto the warped image (for visualization/debugging)
     warped = cf.draw_grid(warped, grid, COLS, ROWS)
-    warped = pa.draw_path(cf.cv2, warped, path, grid, COLS, ROWS)
+    warped = pa.draw_path(cf.cv2, warped, path, inflated_grid, COLS, ROWS)
 
     # --- Steering ---
     agv_angle       = None
@@ -76,7 +81,7 @@ while True:
 
     # 10. Compute the next steering target along the path (angle + distance to aim for)
     if agv_pos is not None:
-        segment = pa.get_next_segment(path, agv_pos, grid.shape, warped.shape, COLS, ROWS, lookahead=6)
+        segment = pa.get_next_segment(path, agv_pos, inflated_grid.shape, warped.shape, COLS, ROWS, lookahead=6)
         if segment is not None:
             target_angle, distance, target_cell = segment
     else:
