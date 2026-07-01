@@ -139,6 +139,18 @@ def detect_blue_lines(warped):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)   # remove small speckles
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)  # fill small holes
 
+    # filter small blue pieces
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    filtered_mask = np.zeros_like(mask)
+    for i in range(1, num_labels):
+        area   = stats[i, cv2.CC_STAT_AREA]
+        width  = stats[i, cv2.CC_STAT_WIDTH]
+        height = stats[i, cv2.CC_STAT_HEIGHT]
+        aspect = max(width, height) / (min(width, height) + 1)
+        if area > 2000 and aspect > 3.0:
+            filtered_mask[labels == i] = 255
+    mask = filtered_mask
+
     # Find separate blue regions (each one is a "line" or blob)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -184,6 +196,18 @@ def create_grid(warped, cols, rows):
     lower_blue = LOWER_BLUE
     upper_blue = UPPER_BLUE
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    # filter small blue pieces
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    filtered_mask = np.zeros_like(mask)
+    for i in range(1, num_labels):
+        area   = stats[i, cv2.CC_STAT_AREA]
+        width  = stats[i, cv2.CC_STAT_WIDTH]
+        height = stats[i, cv2.CC_STAT_HEIGHT]
+        aspect = max(width, height) / (min(width, height) + 1)
+        if area > 2000 and aspect > 3.0:
+            filtered_mask[labels == i] = 255
+    mask = filtered_mask
 
     grid = np.zeros((rows, cols), dtype=np.uint8)
 
