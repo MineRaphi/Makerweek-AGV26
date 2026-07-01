@@ -2,6 +2,7 @@ import camera_feed as cf
 import path_algorithm as pa
 import drive as d
 import logger
+from replay import Recorder
 from config import *
 
 turn_counter = 0
@@ -9,6 +10,11 @@ turn_counter = 0
 # --- Start logger (writes to a "logs/" subfolder) ---
 if LOGGING_ENABLED:
     logger.init(log_dir=LOG_DIR)
+
+# --- Start replay recorder ---
+if REPLAY_ENABLED:
+    recorder = Recorder(fps=12, resolution=(WARP_WIDTH, WARP_HEIGHT))
+    recorder.start()
 
 # --- Connect to the AGV's motor controller ---
 try:
@@ -135,6 +141,8 @@ while True:
     # 12. Show the processed frame with grid, path, and overlays
     cf.cv2.imshow("Warped", warped)
 
+    recorder.record_frame(frame=warped, agv_pos=agv_pos)
+
     # Press 'q' to exit the loop
     if cf.cv2.waitKey(1) & 0xFF == ord('q'):
         break
@@ -142,6 +150,10 @@ while True:
 # --- Cleanup ---
 if LOGGING_ENABLED:
     logger.close()
+
+if REPLAY_ENABLED:
+    recorder.stop()
+
 cf.cap.release()
 cf.cv2.destroyAllWindows()
 d.disable_wheels()

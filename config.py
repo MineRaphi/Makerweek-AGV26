@@ -45,3 +45,6 @@ PIXEL_PER_MM = 6.944    # conversion factor: how many image pixels correspond to
 
 LOGGING_ENABLED = True
 LOG_DIR = "logs"
+
+REPLAY_ENABLED = True
+REPLAY_FPS = 2

@@ -217,4 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Program specific
 logs/
+sessions/
+.DS_Store
