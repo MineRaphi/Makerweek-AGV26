@@ -7,6 +7,8 @@ AGV_MARKER_ID = 21   # ArUco ID printed on the AGV itself (used to track its pos
 COLS = 80            # number of grid columns to divide the playing field into
 ROWS = 60            # number of grid rows to divide the playing field into
 
+turn_counter = 0
+
 # --- Connect to the AGV's motor controller ---
 try:
     d.enable_wheels()
@@ -64,7 +66,7 @@ while True:
 
     # 10. Compute the next steering target along the path (angle + distance to aim for)
     if agv_pos is not None:
-        segment = pa.get_next_segment(path, agv_pos, grid.shape, warped.shape, COLS, ROWS, lookahead=3)
+        segment = pa.get_next_segment(path, agv_pos, grid.shape, warped.shape, COLS, ROWS, lookahead=6)
         if segment is not None:
             target_angle, distance, target_cell = segment
     else:
@@ -80,6 +82,8 @@ while True:
         agv_dir = cf.get_marker_direction(AGV_MARKER_ID)
 
         if agv_dir is not None:
+            turn_counter += 1
+
             current_angle = agv_dir[0]
 
             # How far off the AGV's heading is from where it needs to point
@@ -88,12 +92,14 @@ while True:
             turn_amount = (turn_amount + 180) % 360 - 180
             print(f"Direction off by: {turn_amount:.1f}°")
 
-            # If heading is off by more than 5°, rotate to correct it first
-            if turn_amount > 5 or turn_amount < -5:
-                d.rotate(turn_amount * 0.9)  # 0.9 = slight damping to avoid overshooting
-            else:
-                # Heading is close enough — drive forward towards the target
-                d.move_mm(distance * d.PIXEL_PER_MM)
+            if turn_counter == 3:
+                turn_counter = 0
+                # If heading is off by more than 5°, rotate to correct it first
+                if turn_amount > 5 or turn_amount < -5:
+                    d.rotate(turn_amount * 0.9)  # 0.9 = slight damping to avoid overshooting
+                else:
+                    # Heading is close enough — drive forward towards the target
+                    d.move_mm(distance * d.PIXEL_PER_MM)
 
     # 12. Show the processed frame with grid, path, and overlays
     cf.cv2.imshow("Warped", warped)
