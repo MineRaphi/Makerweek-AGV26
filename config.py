@@ -16,6 +16,10 @@ ID_BOTTOM_RIGHT = 4
 LOWER_BLUE = np.array([100, 100, 180])
 UPPER_BLUE = np.array([130, 200, 255])
 
+# --- Small area filter  ---
+FILTER_AREA = 2000
+FILTER_ASPECT = 1.0
+
 # --- Output size (in pixels) of the flattened/warped top-down view ---
 WARP_WIDTH = 2000
 WARP_HEIGHT = 1300
@@ -36,7 +40,7 @@ MAX_ROW = 188
 # --- Stepper motor calibration ---
 MAX_STEPS = 3550        # number of motor steps for one full AGV rotation (360°) when wheels turn opposite directions
 STEPS_PER_DEGREE = 10   # motor steps needed to rotate the AGV by 1 degree
-STEPS_PER_MM = 3        # motor steps needed to drive forward 1 mm
+STEPS_PER_MM = 1.8        # motor steps needed to drive forward 1 mm
 PIXEL_PER_MM = 6.944    # conversion factor: how many image pixels correspond to 1 mm on the real field
 
 LOGGING_ENABLED = True

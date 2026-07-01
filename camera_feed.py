@@ -147,7 +147,7 @@ def detect_blue_lines(warped):
         width  = stats[i, cv2.CC_STAT_WIDTH]
         height = stats[i, cv2.CC_STAT_HEIGHT]
         aspect = max(width, height) / (min(width, height) + 1)
-        if area > 2000 and aspect > 3.0:
+        if area > FILTER_AREA and aspect > FILTER_ASPECT:
             filtered_mask[labels == i] = 255
     mask = filtered_mask
 
@@ -205,7 +205,7 @@ def create_grid(warped, cols, rows):
         width  = stats[i, cv2.CC_STAT_WIDTH]
         height = stats[i, cv2.CC_STAT_HEIGHT]
         aspect = max(width, height) / (min(width, height) + 1)
-        if area > 2000 and aspect > 3.0:
+        if area > FILTER_AREA and aspect > FILTER_ASPECT:
             filtered_mask[labels == i] = 255
     mask = filtered_mask
 
