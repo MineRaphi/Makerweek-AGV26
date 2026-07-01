@@ -1,21 +1,8 @@
 import cv2
 import cv2.aruco as aruco
 import numpy as np
+from config import *
 
-# --- ArUco marker IDs that mark the four corners of the playing field ---
-# These are used to compute the perspective warp
-ID_BOTTOM_LEFT = 1
-ID_TOP_LEFT = 2
-ID_TOP_RIGHT = 3
-ID_BOTTOM_RIGHT = 4
-
-# --- HSV color range used to detect the blue obstacle lines ---
-LOWER_BLUE = np.array([100, 100, 200])
-UPPER_BLUE = np.array([130, 200, 255])
-
-# --- Output size (in pixels) of the flattened/warped top-down view ---
-WARP_WIDTH = 2000
-WARP_HEIGHT = 1300
 
 # --- Camera stream setup ---
 stream_url = "http://10.250.150.224:8081"

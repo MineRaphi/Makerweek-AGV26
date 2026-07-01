@@ -2,16 +2,12 @@ import camera_feed as cf
 import path_algorithm as pa
 import drive as d
 import logger
-
-# --- Configuration ---
-AGV_MARKER_ID = 21   # ArUco ID printed on the AGV itself (used to track its position/heading)
-COLS = 80            # number of grid columns to divide the playing field into
-ROWS = 60            # number of grid rows to divide the playing field into
+from config import *
 
 turn_counter = 0
 
 # --- Start logger (writes to a "logs/" subfolder) ---
-logger.init(log_dir="logs")
+logger.init(log_dir=LOG_DIR)
 
 # --- Connect to the AGV's motor controller ---
 try:
