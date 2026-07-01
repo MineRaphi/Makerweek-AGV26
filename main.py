@@ -44,7 +44,7 @@ while True:
     # 5. Convert the warped image into a grid: 0 = free cell, 1 = blocked (blue line)
     grid = cf.create_grid(warped, COLS, ROWS)
 
-    # 5.5 Hindernisse aufblasen damit das Auto nicht zu nah an die Linie fährt
+    # 5.5 Inflate obstacles so the AGV doesn't drive too close to the line.
     kernel = cf.cv2.getStructuringElement(cf.cv2.MORPH_RECT, (2 * INFLATION_RADIUS + 1, 2 * INFLATION_RADIUS + 1))
     inflated_grid = cf.cv2.dilate(grid.astype('uint8'), kernel, iterations=1)
 
