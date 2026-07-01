@@ -55,6 +55,11 @@ def astar(grid, start, dist_map, clearance_weight=3.0):
     rows, cols = grid.shape
     max_dist = dist_map.max() or 1  # avoid divide-by-zero if dist_map is all zeros
 
+    # If the start cell is blocked, snap to the nearest free cell
+    start = find_nearest_free(grid, start)
+    if start is None:
+        return None  # no free cells at all, can't plan a path
+
     def heuristic(r, c):
         # Estimated remaining distance to the goal = distance to the right edge
         # (since the goal is "any cell in the last column", not a fixed point)
@@ -206,3 +211,37 @@ def get_next_segment(path, current_pos, grid_shape, warped_shape, cols, rows, lo
     angle = np.degrees(np.arctan2(-dy, dx))
 
     return angle, distance, target_cell
+
+
+def find_nearest_free(grid, pos):
+    """
+    If pos is inside an obstacle, performs a BFS outward from pos
+    until it finds the nearest free cell and returns that instead.
+    If pos is already free, returns it unchanged.
+    """
+    rows, cols = grid.shape
+    r, c = pos
+
+    if grid[r, c] == 0:
+        return pos  # already free, nothing to do
+
+    # BFS outward from the blocked starting position
+    visited = set()
+    queue   = [(r, c)]
+    visited.add((r, c))
+
+    while queue:
+        cr, cc = queue.pop(0)
+        for dr, dc in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]:
+            nr, nc = cr + dr, cc + dc
+            if not (0 <= nr < rows and 0 <= nc < cols):
+                continue
+            if (nr, nc) in visited:
+                continue
+            if grid[nr, nc] == 0:
+                return (nr, nc)  # found the nearest free cell
+            visited.add((nr, nc))
+            queue.append((nr, nc))
+
+    return None  # no free cell found anywhere (grid is completely blocked)
+
