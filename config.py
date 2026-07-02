@@ -47,4 +47,4 @@ LOGGING_ENABLED = True
 LOG_DIR = "logs"
 
 REPLAY_ENABLED = True
-REPLAY_FPS = 2
+REPLAY_FPS = 12         # Changing this doesn't do anything at the moment
