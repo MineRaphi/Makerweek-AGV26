@@ -368,8 +368,14 @@ class Player:
                         self.caps[name].read()
 
                 if frame is None:
-                    print("End of replay.")
-                    break
+                    # Loop back to the beginning
+                    idx = self._seek_all(0)
+                    frame = self._read_frame(self.stream_names[self.active_stream])
+                    for name in self.stream_names:
+                        if name != self.stream_names[self.active_stream]:
+                            self.caps[name].read()
+                    if frame is None:
+                        break  # truly unreadable, give up
 
                 idx  = int(self.caps[active_name].get(cv2.CAP_PROP_POS_FRAMES)) - 1
                 data = self.frames_data[idx] if idx < len(self.frames_data) else {}
