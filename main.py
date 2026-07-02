@@ -4,6 +4,7 @@ import drive as d
 import logger
 from replay import Recorder
 from config import *
+import copy
 
 turn_counter = 0
 agv_reachable = True
@@ -14,7 +15,7 @@ if LOGGING_ENABLED:
 
 # --- Start replay recorder ---
 if REPLAY_ENABLED:
-    recorder = Recorder(fps=12, resolution=(WARP_WIDTH, WARP_HEIGHT))
+    recorder = Recorder(fps=12)
     recorder.start()
 
 # --- Connect to the AGV's motor controller ---
@@ -44,13 +45,14 @@ while True:
 
     # 3. Apply perspective correction so the field appears as a flat top-down view
     #    M is the transform matrix, needed later to convert marker positions into the warped space
-    warped, M = cf.flatten_image(frame)
+    processed, M = cf.flatten_image(frame)
+    original_warped = copy.deepcopy(processed)
 
     # 4. Detect the blue obstacle lines on the warped (flat) image
-    warped, mask, lines = cf.detect_blue_lines(warped)
+    processed, mask, lines = cf.detect_blue_lines(processed)
 
     # 5. Convert the warped image into a grid: 0 = free cell, 1 = blocked (blue line)
-    grid = cf.create_grid(warped, COLS, ROWS)
+    grid = cf.create_grid(processed, COLS, ROWS)
 
     # 5.5 Inflate obstacles so the AGV doesn't drive too close to the line.
     kernel = cf.cv2.getStructuringElement(cf.cv2.MORPH_RECT, (2 * INFLATION_RADIUS + 1, 2 * INFLATION_RADIUS + 1))
@@ -61,7 +63,7 @@ while True:
     dist_map = pa.compute_distance_map(inflated_grid)
 
     # 7. Find the AGV's current position on the grid (using its marker, mapped through M)
-    agv_pos = cf.marker_to_grid(AGV_MARKER_ID, M, warped.shape, COLS, ROWS)
+    agv_pos = cf.marker_to_grid(AGV_MARKER_ID, M, processed.shape, COLS, ROWS)
 
     if agv_pos is not None:
         start = agv_pos
@@ -74,8 +76,8 @@ while True:
     path = pa.astar(inflated_grid, start, dist_map, clearance_weight=6.0)
 
     # 9. Draw the grid and the computed path onto the warped image (for visualization/debugging)
-    warped = cf.draw_grid(warped, grid, COLS, ROWS)
-    warped = pa.draw_path(cf.cv2, warped, path, inflated_grid, COLS, ROWS)
+    processed = cf.draw_grid(processed, grid, COLS, ROWS)
+    processed = pa.draw_path(cf.cv2, processed, path, inflated_grid, COLS, ROWS)
 
     # --- Steering ---
     agv_angle       = None
@@ -89,7 +91,7 @@ while True:
 
     # 10. Compute the next steering target along the path (angle + distance to aim for)
     if agv_pos is not None:
-        segment = pa.get_next_segment(path, agv_pos, inflated_grid.shape, warped.shape, COLS, ROWS, lookahead=6)
+        segment = pa.get_next_segment(path, agv_pos, inflated_grid.shape, processed.shape, COLS, ROWS, lookahead=6)
         if segment is not None:
             target_angle, distance, target_cell = segment
     else:
@@ -115,7 +117,7 @@ while True:
             turn_amount = target_angle - current_angle
             # Normalize to the range -180..180 so it always turns the shorter way
             turn_amount = (turn_amount + 180) % 360 - 180
-            print(f"Direction off by: {turn_amount:.1f}°")
+            print(f"Direction off by: {-turn_amount:.1f}°")
 
             if turn_counter == TURN_WAIT:
                 turn_counter = 0
@@ -146,13 +148,18 @@ while True:
         )
 
     # 12. Show the processed frame with grid, path, and overlays
-    cf.cv2.imshow("Warped", warped)
+    cf.cv2.imshow("Warped", processed)
 
     if REPLAY_ENABLED:
         recorder.record_frame(
-            frame          = warped,
+            frames         = {
+                "final": processed,
+                "warped": original_warped,
+                "raw": frame,
+                "mask": mask,
+            },
             agv_pos        = agv_pos,
-            agv_angle      = agv_angle,
+            agv_angle      = agv_dir,
             target_angle   = target_angle,
             target_distance= target_distance,
             target_cell    = target_cell,
