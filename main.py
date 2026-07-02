@@ -159,7 +159,7 @@ while True:
                 "mask": mask,
             },
             agv_pos        = agv_pos,
-            agv_angle      = agv_dir,
+            agv_angle      = agv_angle,
             target_angle   = target_angle,
             target_distance= target_distance,
             target_cell    = target_cell,
