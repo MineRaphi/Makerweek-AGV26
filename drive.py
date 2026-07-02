@@ -2,21 +2,26 @@ import requests
 import random
 from config import *
 
+# One session reused for every request: sends the API-Key header
+# automatically, so none of the functions below need to set it manually.
+session = requests.Session()
+session.headers.update({"API-Key": AGV_API_KEY})
+
 
 def enable_wheels():
     """Powers on the stepper motors so the AGV can move."""
-    response = requests.post(
+    response = session.post(
         f"{AGV_BASE_URL}/stepper/enable",
-        json={ "stepper": "on" }
+        json={"stepper": "on"}
     )
     return response
 
 
 def disable_wheels():
     """Powers off the stepper motors (AGV won't respond to movement commands)."""
-    response = requests.post(
+    response = session.post(
         f"{AGV_BASE_URL}/stepper/enable",
-        json={ "stepper": "off" }
+        json={"stepper": "off"}
     )
     return response
 
@@ -26,7 +31,7 @@ def set_velocity(left, right):
     Sets continuous wheel speed as a percentage (not a fixed move — runs until changed).
     left / right: velocity percentage for each wheel (e.g. -100 to 100)
     """
-    response = requests.post(
+    response = session.post(
         f"{AGV_BASE_URL}/stepper/setVelocity",
         json={
             "velLeft_perc": left,
@@ -46,7 +51,7 @@ def move_steps(left, right):
     Moves each wheel by a RELATIVE number of motor steps from its current position.
     Positive = forward, negative = backward, for that wheel.
     """
-    response = requests.post(
+    response = session.post(
         f"{AGV_BASE_URL}/stepper/setMoveRelative",
         json={
             "leftDelta_steps": left,
@@ -61,7 +66,7 @@ def set_step(left, right):
     Moves each wheel to an ABSOLUTE step position (not relative to current position).
     Useful for resetting to a known state.
     """
-    response = requests.post(
+    response = session.post(
         f"{AGV_BASE_URL}/stepper/setMoveAbsolute",
         json={
             "leftPos_steps": left,

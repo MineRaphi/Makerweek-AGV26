@@ -26,6 +26,7 @@ WARP_HEIGHT = 1300
 
 # --- AGV HTTP API endpoint ---
 AGV_BASE_URL = "http://172.17.1.54/api/agv"
+AGV_API_KEY = "supersecretAPIkey"
 
 # --- Physical robot dimensions (in mm) ---
 WHEEL_DIAMETER = 95     # diameter of the drive wheels
@@ -40,8 +41,8 @@ MAX_ROW = 188
 # --- Stepper motor calibration ---
 MAX_STEPS = 3550        # number of motor steps for one full AGV rotation (360°) when wheels turn opposite directions
 STEPS_PER_DEGREE = 10   # motor steps needed to rotate the AGV by 1 degree
-STEPS_PER_MM = 1.8        # motor steps needed to drive forward 1 mm
-PIXEL_PER_MM = 6.944    # conversion factor: how many image pixels correspond to 1 mm on the real field
+PIXEL_PER_MM = 1.6      # motor steps needed to drive forward 1 mm
+STEPS_PER_MM = 6.944    # conversion factor: how many image pixels correspond to 1 mm on the real field
 
 LOGGING_ENABLED = True
 LOG_DIR = "logs"
