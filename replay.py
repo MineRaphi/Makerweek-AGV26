@@ -319,31 +319,31 @@ class Player:
             (80, 80, 255) if paused else (220, 180, 50))
         put(f"TIME   {data.get('timestamp', '')[:19]}", 3, (160, 160, 160))
 
-        put("─── AGV ───────────────────", 5, (100, 180, 255))
+        put("--- AGV ---", 5, (100, 180, 255))
         put(f"Grid pos  row={data.get('agv_grid_row','?')}  col={data.get('agv_grid_col','?')}", 6)
         put(f"Angle     {data.get('agv_angle','?')}°", 7)
         put(f"At goal   {data.get('at_goal','?')}", 8,
             (50, 255, 50) if data.get("at_goal") == "True" else (220, 220, 220))
 
-        put("─── PATH ──────────────────", 10, (100, 180, 255))
+        put("--- PATH ---", 10, (100, 180, 255))
         put(f"Length    {data.get('path_length','?')} cells", 11)
         put(f"Target    row={data.get('target_cell_row','?')}  col={data.get('target_cell_col','?')}", 12)
         put(f"T.angle   {data.get('target_angle','?')}°", 13)
         put(f"T.dist    {data.get('target_distance','?')} px", 14)
 
-        put("─── STEERING ──────────────", 16, (100, 180, 255))
+        put("--- STEERING ---", 16, (100, 180, 255))
         put(f"Turn amt  {data.get('turn_amount','?')}°", 17)
         action = data.get("action", "none")
         color  = (50, 200, 50) if action == "move" else (50, 100, 255) if action == "rotate" else (160,160,160)
         put(f"Action    {action}  ({data.get('action_value','?')})", 18, color)
 
-        put("─── FIELD ─────────────────", 20, (100, 180, 255))
+        put("--- FIELD ---", 20, (100, 180, 255))
         put(f"Blue lines  {data.get('blue_lines_found','?')}", 21)
         put(f"Markers     {data.get('marker_ids_visible','?')}", 22)
 
-        put("─── CONTROLS ──────────────", 24, (130, 130, 130))
+        put("--- CONTROLS ---", 24, (130, 130, 130))
         put("SPACE pause  TAB stream",   25, (130, 130, 130))
-        put("←/→ step  +/- speed  Q quit", 26, (130, 130, 130))
+        put("A/D step  +/- speed  Q quit", 26, (130, 130, 130))
 
         return frame
 
