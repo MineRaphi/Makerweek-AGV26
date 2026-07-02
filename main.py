@@ -141,7 +141,21 @@ while True:
     # 12. Show the processed frame with grid, path, and overlays
     cf.cv2.imshow("Warped", warped)
 
-    recorder.record_frame(frame=warped, agv_pos=agv_pos)
+    if REPLAY_ENABLED:
+        recorder.record_frame(
+            frame          = warped,
+            agv_pos        = agv_pos,
+            agv_angle      = agv_angle,
+            target_angle   = target_angle,
+            target_distance= target_distance,
+            target_cell    = target_cell,
+            turn_amount    = turn_amount,
+            action         = action,
+            action_value   = action_value,
+            path           = path,
+            lines          = lines,
+            marker_centers = cf.marker_centers,
+        )
 
     # Press 'q' to exit the loop
     if cf.cv2.waitKey(1) & 0xFF == ord('q'):

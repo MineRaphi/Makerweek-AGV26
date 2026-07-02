@@ -96,7 +96,6 @@ class Recorder:
             "path_length",
             "blue_lines_found",
             "marker_ids_visible",
-            "at_goal",
         ])
 
         # Save session metadata
@@ -127,7 +126,6 @@ class Recorder:
         path           = None,
         lines          = None,
         marker_centers = None,
-        at_goal        = False,
     ):
         """
         Records one frame. Call this once per iteration of your main loop,
@@ -164,7 +162,6 @@ class Recorder:
             len(path)               if path           is not None else 0,
             len(lines)              if lines          is not None else 0,
             " ".join(str(k) for k in marker_centers.keys()) if marker_centers else "",
-            at_goal,
         ])
 
         self.csv_file.flush()
@@ -257,8 +254,6 @@ class Player:
         put("─── AGV ───────────────────", 4, (100, 180, 255))
         put(f"Grid pos  row={data.get('agv_grid_row','?')}  col={data.get('agv_grid_col','?')}", 5)
         put(f"Angle     {data.get('agv_angle','?')}°", 6)
-        put(f"At goal   {data.get('at_goal','?')}", 7,
-            (50, 255, 50) if data.get("at_goal") == "True" else (220, 220, 220))
 
         put("─── PATH ──────────────────", 9, (100, 180, 255))
         put(f"Length    {data.get('path_length','?')} cells", 10)
@@ -370,7 +365,6 @@ class Player:
 #           path           = path,
 #           lines          = lines,
 #           marker_centers = cf.marker_centers,
-#           at_goal        = pa.is_at_goal(agv_pos, grid),
 #       )
 #
 #   recorder.stop()
