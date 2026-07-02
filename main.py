@@ -82,7 +82,7 @@ while True:
     # --- Steering ---
     agv_angle       = None
     target_angle    = None
-    target_distance = None
+    distance        = None
     target_cell     = None
     turn_amount     = None
     action          = "none"
@@ -137,7 +137,7 @@ while True:
             agv_pos        = agv_pos,
             agv_angle      = agv_angle,
             target_angle   = target_angle,
-            target_distance= target_distance,
+            target_distance= distance,
             target_cell    = target_cell,
             turn_amount    = turn_amount,
             action         = action,
@@ -161,7 +161,7 @@ while True:
             agv_pos        = agv_pos,
             agv_angle      = agv_angle,
             target_angle   = target_angle,
-            target_distance= target_distance,
+            target_distance= distance,
             target_cell    = target_cell,
             turn_amount    = turn_amount,
             action         = action,

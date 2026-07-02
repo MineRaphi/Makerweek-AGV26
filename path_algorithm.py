@@ -115,7 +115,7 @@ def astar(grid, start, dist_map, clearance_weight=3.0):
     return None  # open set exhausted without reaching the right edge — no path exists
 
 
-def draw_path(cv2, warped, path, grid, cols=20, rows=20):
+def draw_path(cv2, warped, path, grid, cols=20, rows=20, color=(0, 255, 0)):
     """
     Draws the computed path onto the warped image: a line connecting
     each cell center, with markers for the start (blue) and end (red).
@@ -141,12 +141,12 @@ def draw_path(cv2, warped, path, grid, cols=20, rows=20):
     # Draw a dot at each path cell, and a line connecting it to the next one
     for i, (r, c) in enumerate(path):
         cx, cy = cell_center(r, c)
-        cv2.circle(warped, (cx, cy), 4, (0, 255, 0), -1)
+        cv2.circle(warped, (cx, cy), 4, color, -1)
 
         if i + 1 < len(path):
             nr, nc = path[i + 1]
             nx, ny = cell_center(nr, nc)
-            cv2.line(warped, (cx, cy), (nx, ny), (0, 255, 0), 2)
+            cv2.line(warped, (cx, cy), (nx, ny), color, 2)
 
     # Highlight the start (blue) and end (red) of the path
     sr, sc = path[0]

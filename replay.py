@@ -300,7 +300,10 @@ class Player:
     def _total_frames(self):
         return int(list(self.caps.values())[0].get(cv2.CAP_PROP_FRAME_COUNT))
 
-    def _draw_overlay(self, frame, data, frame_idx, total_frames, paused, speed, stream_name):
+    def _draw_overlay(self, frame, data, frame_idx, total_frames, paused, speed, stream_name, show_overlay=True):
+        if not show_overlay:
+            return frame  # return the clean frame with no panel drawn
+
         """Draws the data panel on the left and stream name label at the top."""
         panel_w = 320
         overlay = frame.copy()
@@ -322,8 +325,6 @@ class Player:
         put("--- AGV ---", 5, (100, 180, 255))
         put(f"Grid pos  row={data.get('agv_grid_row','?')}  col={data.get('agv_grid_col','?')}", 6)
         put(f"Angle     {data.get('agv_angle','?')}", 7)
-        put(f"At goal   {data.get('at_goal','?')}", 8,
-            (50, 255, 50) if data.get("at_goal") == "True" else (220, 220, 220))
 
         put("--- PATH ---", 10, (100, 180, 255))
         put(f"Length    {data.get('path_length','?')} cells", 11)
@@ -342,8 +343,8 @@ class Player:
         put(f"Markers     {data.get('marker_ids_visible','?')}", 22)
 
         put("--- CONTROLS ---", 24, (130, 130, 130))
-        put("SPACE pause  TAB stream",   25, (130, 130, 130))
-        put("A/D step  +/- speed  Q quit", 26, (130, 130, 130))
+        put("SPACE pause  TAB stream  H hide", 25, (130, 130, 130))
+        put("A/D step  +/- speed  Q quit",     26, (130, 130, 130))
 
         return frame
 
@@ -354,6 +355,7 @@ class Player:
         idx    = 0
         paused = False
         speed  = 1.0
+        show_overlay = True
 
         while True:
             active_name = self.stream_names[self.active_stream]
@@ -380,7 +382,7 @@ class Player:
                 idx  = int(self.caps[active_name].get(cv2.CAP_PROP_POS_FRAMES)) - 1
                 data = self.frames_data[idx] if idx < len(self.frames_data) else {}
 
-                annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name)
+                annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name, show_overlay)
                 cv2.imshow("AGV Replay", annotated)
 
                 delay = max(1, int((1000 / fps) / speed))
@@ -401,7 +403,7 @@ class Player:
                 if frame is not None:
                     data      = self.frames_data[idx] if idx < len(self.frames_data) else {}
                     annotated = self._draw_overlay(frame, data, idx, total, paused, speed,
-                                                   self.stream_names[self.active_stream])
+                                                   self.stream_names[self.active_stream], show_overlay)
                     cv2.imshow("AGV Replay", annotated)
             elif key == 83 or key == ord('d'):          # RIGHT / D — step forward
                 paused = True
@@ -409,7 +411,7 @@ class Player:
                 frame  = self._read_frame(self.stream_names[self.active_stream])
                 if frame is not None:
                     data      = self.frames_data[idx] if idx < len(self.frames_data) else {}
-                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name)
+                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name, show_overlay)
                     cv2.imshow("AGV Replay", annotated)
             elif key == 81 or key == ord('a'):          # LEFT / A — step back
                 paused = True
@@ -417,12 +419,14 @@ class Player:
                 frame  = self._read_frame(self.stream_names[self.active_stream])
                 if frame is not None:
                     data      = self.frames_data[idx] if idx < len(self.frames_data) else {}
-                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name)
+                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name, show_overlay)
                     cv2.imshow("AGV Replay", annotated)
             elif key in (ord('+'), ord('=')):           # + — speed up
                 speed = min(speed + 0.25, 4.0)
             elif key in (ord('-'), ord('_')):           # - — slow down
                 speed = max(speed - 0.25, 0.25)
+            elif key == ord('h'):                       # H — toggle data overlay
+                show_overlay = not show_overlay
 
         for cap in self.caps.values():
             cap.release()
