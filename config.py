@@ -49,3 +49,5 @@ LOG_DIR = "logs"        # selects directory for logs
 
 REPLAY_ENABLED = True   # enables or disables replays
 REPLAY_FPS = 12         # changing this doesn't do anything at the moment
+
+TURN_WAIT = 2           # if value is lower than 2, the camera refresh rate is too slow
