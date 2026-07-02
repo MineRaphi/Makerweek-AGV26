@@ -44,8 +44,8 @@ STEPS_PER_DEGREE = 10   # motor steps needed to rotate the AGV by 1 degree
 PIXEL_PER_MM = 1.4      # motor steps needed to drive forward 1 mm
 STEPS_PER_MM = 6.944    # conversion factor: how many image pixels correspond to 1 mm on the real field
 
-LOGGING_ENABLED = False
-LOG_DIR = "logs"
+LOGGING_ENABLED = False # enables or disables logging
+LOG_DIR = "logs"        # selects directory for logs
 
-REPLAY_ENABLED = True
-REPLAY_FPS = 12         # Changing this doesn't do anything at the moment
+REPLAY_ENABLED = True   # enables or disables replays
+REPLAY_FPS = 12         # changing this doesn't do anything at the moment
