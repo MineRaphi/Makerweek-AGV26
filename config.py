@@ -44,7 +44,7 @@ STEPS_PER_DEGREE = 10   # motor steps needed to rotate the AGV by 1 degree
 PIXEL_PER_MM = 1.6      # motor steps needed to drive forward 1 mm
 STEPS_PER_MM = 6.944    # conversion factor: how many image pixels correspond to 1 mm on the real field
 
-LOGGING_ENABLED = True
+LOGGING_ENABLED = False
 LOG_DIR = "logs"
 
 REPLAY_ENABLED = True
