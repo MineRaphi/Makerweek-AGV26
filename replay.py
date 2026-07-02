@@ -9,7 +9,14 @@ RECORDING:
     recorder.start()
 
     # Inside main loop, after all processing:
-    recorder.record_frame(frame=warped, agv_pos=agv_pos, ...)
+    recorder.record_frame(
+        frames={
+            "warped": warped,   # annotated top-down view
+            "raw":    frame,    # original camera frame
+        },
+        agv_pos=agv_pos,
+        ...
+    )
 
     # On exit:
     recorder.stop()
@@ -20,11 +27,13 @@ PLAYBACK:
         python replay.py sessions/session_20260701_142305/
 
     Controls during playback:
-        SPACE   — pause / resume
-        LEFT    — step back one frame
-        RIGHT   — step forward one frame
-        Q       — quit
-        +/-     — speed up / slow down
+        SPACE       — pause / resume
+        LEFT / A    — step back one frame
+        RIGHT / D   — step forward one frame
+        TAB         — switch between recorded video views
+        + / =       — speed up
+        - / _       — slow down
+        Q / ESC     — quit
 """
 
 import cv2
@@ -41,47 +50,47 @@ from config import *
 
 class Recorder:
     """
-    Records every frame of the warped image alongside its associated data
-    into a session folder. Each session contains:
-        - video.mp4       — all processed frames as a video
-        - data.csv        — one row of data per frame
-        - meta.json       — session metadata (fps, resolution, start time)
+    Records multiple video streams alongside frame data into a session folder.
+
+    Each session contains:
+        - video_<name>.mp4  — one video file per named frame passed to record_frame()
+        - data.csv          — one row of data per frame, synced by frame_index
+        - meta.json         — session metadata (fps, resolutions, stream names, start time)
     """
 
-    def __init__(self, session_dir="sessions", fps=20, resolution=(1000, 600)):
+    def __init__(self, session_dir="sessions", fps=20):
         """
-        session_dir:  root folder where session subfolders are created
-        fps:          frames per second for the output video
-        resolution:   (width, height) of the warped frame — must match your WARP_WIDTH/WARP_HEIGHT
+        session_dir: root folder where session subfolders are created
+        fps:         frames per second for all output videos
         """
-        self.fps        = fps
-        self.resolution = resolution
+        self.fps          = fps
         self.session_path = None
-        self.video_writer = None
+        self.session_dir  = session_dir
+
+        # One VideoWriter per named stream, populated on first record_frame() call
+        self._writers     = {}
+        # Resolution per stream, inferred from the first frame of each
+        self._resolutions = {}
+
         self.csv_file     = None
         self.csv_writer   = None
         self.frame_index  = 0
         self.start_time   = None
-        self.session_dir  = session_dir
 
     def start(self):
         """
-        Creates a new session folder and opens the video + CSV files for writing.
+        Creates a new session folder and opens the CSV file.
+        Video writers are opened lazily on the first frame so their
+        resolution can be inferred automatically.
         Call this once before the main loop starts.
         """
-        # Create a uniquely named session folder
         timestamp         = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_path = os.path.join(self.session_dir, f"session_{timestamp}")
         os.makedirs(self.session_path, exist_ok=True)
 
-        # Set up the video writer (mp4v codec → .mp4)
-        video_path   = os.path.join(self.session_path, "video.mp4")
-        fourcc       = cv2.VideoWriter_fourcc(*"mp4v")
-        self.video_writer = cv2.VideoWriter(video_path, fourcc, self.fps, self.resolution)
-
-        # Set up the CSV writer
-        csv_path       = os.path.join(self.session_path, "data.csv")
-        self.csv_file  = open(csv_path, "w", newline="")
+        # CSV log
+        csv_path        = os.path.join(self.session_path, "data.csv")
+        self.csv_file   = open(csv_path, "w", newline="")
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow([
             "frame_index",
@@ -96,101 +105,135 @@ class Recorder:
             "path_length",
             "blue_lines_found",
             "marker_ids_visible",
+            "at_goal",
         ])
 
-        # Save session metadata
-        meta = {
+        # Metadata — video stream names are added later when writers are created
+        self._meta_path = os.path.join(self.session_path, "meta.json")
+        self._meta = {
             "start_time": timestamp,
             "fps":        self.fps,
-            "resolution": self.resolution,
+            "streams":    [],
         }
-        with open(os.path.join(self.session_path, "meta.json"), "w") as f:
-            json.dump(meta, f, indent=2)
+        self._save_meta()
 
         self.start_time  = time.time()
         self.frame_index = 0
-
         print(f"Recording to: {self.session_path}")
+
+    def _save_meta(self):
+        with open(self._meta_path, "w") as f:
+            json.dump(self._meta, f, indent=2)
+
+    def _get_writer(self, name, frame):
+        """
+        Returns the VideoWriter for the given stream name, creating it if
+        this is the first frame for that stream.
+        """
+        if name not in self._writers:
+            h, w    = frame.shape[:2]
+            resolution = (w, h)
+            path    = os.path.join(self.session_path, f"video_{name}.mp4")
+            fourcc  = cv2.VideoWriter_fourcc(*"mp4v")
+            self._writers[name]     = cv2.VideoWriter(path, fourcc, self.fps, resolution)
+            self._resolutions[name] = resolution
+
+            # Register this stream in metadata
+            self._meta["streams"].append({"name": name, "resolution": resolution})
+            self._save_meta()
+
+        return self._writers[name]
 
     def record_frame(
         self,
-        frame,
-        agv_pos        = None,
-        agv_angle      = None,
-        target_angle   = None,
-        target_distance= None,
-        target_cell    = None,
-        turn_amount    = None,
-        action         = "none",
-        action_value   = None,
-        path           = None,
-        lines          = None,
-        marker_centers = None,
+        frames,                  # dict of {stream_name: image}, e.g. {"warped": warped, "raw": frame}
+        agv_pos         = None,
+        agv_angle       = None,
+        target_angle    = None,
+        target_distance = None,
+        target_cell     = None,
+        turn_amount     = None,
+        action          = "none",
+        action_value    = None,
+        path            = None,
+        lines           = None,
+        marker_centers  = None,
+        at_goal         = False,
     ):
         """
-        Records one frame. Call this once per iteration of your main loop,
-        after all processing is done and the warped frame is fully annotated.
+        Records one frame across all video streams, plus one CSV data row.
+        Call this once per main loop iteration after all processing.
 
-        frame: the annotated warped image (numpy array, BGR)
-        All other parameters mirror the logger.write_frame() signature.
+        frames: dict mapping stream name → annotated image (numpy BGR array)
+                e.g. {"warped": warped_img, "raw": raw_frame, "mask": blue_mask}
         """
-        if self.video_writer is None:
+        if self.csv_file is None:
             raise RuntimeError("Recorder not started — call recorder.start() first.")
 
-        # Resize frame to the configured resolution if it doesn't match
-        h, w = frame.shape[:2]
-        if (w, h) != self.resolution:
-            frame = cv2.resize(frame, self.resolution)
+        # Write each named video stream
+        for name, img in frames.items():
+            writer = self._get_writer(name, img)
 
-        # Write the frame into the video
-        self.video_writer.write(frame)
+            # Convert grayscale to BGR if needed (e.g. for the blue mask)
+            if len(img.shape) == 2:
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-        # Write the matching data row into the CSV
+            # Resize if the frame doesn't match this stream's registered resolution
+            expected_res = self._resolutions[name]
+            h, w = img.shape[:2]
+            if (w, h) != expected_res:
+                img = cv2.resize(img, expected_res)
+
+            writer.write(img)
+
+        # Write CSV row
         self.csv_writer.writerow([
             self.frame_index,
             datetime.now().isoformat(),
-            agv_pos[0]              if agv_pos        else "",
-            agv_pos[1]              if agv_pos        else "",
-            round(agv_angle, 2)     if agv_angle      is not None else "",
-            round(target_angle, 2)  if target_angle   is not None else "",
-            round(target_distance, 2) if target_distance is not None else "",
-            target_cell[0]          if target_cell    else "",
-            target_cell[1]          if target_cell    else "",
-            round(turn_amount, 2)   if turn_amount    is not None else "",
+            agv_pos[0]                if agv_pos          else "",
+            agv_pos[1]                if agv_pos          else "",
+            round(agv_angle, 2)       if agv_angle        is not None else "",
+            round(target_angle, 2)    if target_angle     is not None else "",
+            round(target_distance, 2) if target_distance  is not None else "",
+            target_cell[0]            if target_cell      else "",
+            target_cell[1]            if target_cell      else "",
+            round(turn_amount, 2)     if turn_amount      is not None else "",
             action,
-            action_value            if action_value   is not None else "",
-            len(path)               if path           is not None else 0,
-            len(lines)              if lines          is not None else 0,
+            action_value              if action_value      is not None else "",
+            len(path)                 if path              is not None else 0,
+            len(lines)                if lines             is not None else 0,
             " ".join(str(k) for k in marker_centers.keys()) if marker_centers else "",
+            at_goal,
         ])
 
         self.csv_file.flush()
         self.frame_index += 1
 
     def stop(self):
-        """
-        Finalises and closes all files. Call this when the main loop exits.
-        """
-        if self.video_writer:
-            self.video_writer.release()
+        """Finalises and closes all files. Call this when the main loop exits."""
+        for writer in self._writers.values():
+            writer.release()
         if self.csv_file:
             self.csv_file.close()
 
         duration = time.time() - self.start_time if self.start_time else 0
-        print(f"Recording stopped. {self.frame_index} frames saved in {duration:.1f}s → {self.session_path}")
+        streams  = list(self._writers.keys())
+        print(f"Recording stopped. {self.frame_index} frames across {len(streams)} streams "
+              f"({', '.join(streams)}) in {duration:.1f}s → {self.session_path}")
 
 
 # ── Player ────────────────────────────────────────────────────────────────────
 
 class Player:
     """
-    Replays a recorded session, showing each video frame side-by-side with
-    its corresponding CSV data in an overlay panel.
+    Replays a recorded session. Multiple video streams are loaded; press TAB
+    to switch between them. Each frame shows the video alongside a data overlay.
 
     Controls:
         SPACE       pause / resume
         LEFT / A    step back one frame
         RIGHT / D   step forward one frame
+        TAB         cycle through the recorded video streams
         + / =       increase playback speed
         - / _       decrease playback speed
         Q / ESC     quit
@@ -198,18 +241,17 @@ class Player:
 
     def __init__(self, session_path):
         self.session_path = session_path
-        self.frames_data  = []   # list of dicts, one per frame
-        self.cap          = None
+        self.frames_data  = []
         self.meta         = {}
+        self.caps         = {}   # {stream_name: VideoCapture}
+        self.stream_names = []   # ordered list of stream names
+        self.active_stream = 0  # index into stream_names for the currently shown video
 
     def load(self):
-        """Loads the CSV data and opens the video file."""
-        csv_path   = os.path.join(self.session_path, "data.csv")
-        video_path = os.path.join(self.session_path, "video.mp4")
-        meta_path  = os.path.join(self.session_path, "meta.json")
+        """Loads metadata, CSV data, and opens all video files found in the session."""
+        csv_path  = os.path.join(self.session_path, "data.csv")
+        meta_path = os.path.join(self.session_path, "meta.json")
 
-        if not os.path.exists(video_path):
-            raise FileNotFoundError(f"No video found at {video_path}")
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"No data CSV found at {csv_path}")
 
@@ -218,26 +260,51 @@ class Player:
             with open(meta_path) as f:
                 self.meta = json.load(f)
 
-        # Load all CSV rows into memory
+        # Load all CSV rows
         with open(csv_path, newline="") as f:
-            reader = csv.DictReader(f)
-            self.frames_data = list(reader)
+            self.frames_data = list(csv.DictReader(f))
 
-        # Open the video
-        self.cap = cv2.VideoCapture(video_path)
-        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # Find and open all video files in the session folder
+        video_files = sorted([
+            f for f in os.listdir(self.session_path)
+            if f.startswith("video_") and f.endswith(".mp4")
+        ])
+
+        if not video_files:
+            raise FileNotFoundError(f"No video files found in {self.session_path}")
+
+        for vf in video_files:
+            # Strip "video_" prefix and ".mp4" suffix to get the stream name
+            name = vf[len("video_"):-len(".mp4")]
+            cap  = cv2.VideoCapture(os.path.join(self.session_path, vf))
+            self.caps[name]   = cap
+            self.stream_names.append(name)
+
+        total_frames = int(list(self.caps.values())[0].get(cv2.CAP_PROP_FRAME_COUNT))
         print(f"Loaded session: {self.session_path}")
-        print(f"  Frames: {total_frames}  |  Data rows: {len(self.frames_data)}")
+        print(f"  Streams : {', '.join(self.stream_names)}")
+        print(f"  Frames  : {total_frames}  |  Data rows: {len(self.frames_data)}")
 
-    def _draw_overlay(self, frame, data, frame_idx, total_frames, paused, speed):
-        """
-        Draws a semi-transparent data panel on the left side of the frame
-        showing all the recorded values for the current frame.
-        """
+    def _read_frame(self, name):
+        """Reads the next frame from the named stream."""
+        ret, frame = self.caps[name].read()
+        return frame if ret else None
+
+    def _seek_all(self, idx):
+        """Seeks all video streams to the same frame index."""
+        idx = max(0, min(idx, self._total_frames() - 1))
+        for cap in self.caps.values():
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        return idx
+
+    def _total_frames(self):
+        return int(list(self.caps.values())[0].get(cv2.CAP_PROP_FRAME_COUNT))
+
+    def _draw_overlay(self, frame, data, frame_idx, total_frames, paused, speed, stream_name):
+        """Draws the data panel on the left and stream name label at the top."""
         panel_w = 320
         overlay = frame.copy()
 
-        # Dark background panel
         cv2.rectangle(overlay, (0, 0), (panel_w, frame.shape[0]), (20, 20, 20), -1)
         cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
 
@@ -247,98 +314,112 @@ class Player:
 
         # Header
         put(f"FRAME  {frame_idx + 1} / {total_frames}", 0, (100, 220, 100))
-        put(f"{'PAUSED' if paused else f'SPEED {speed:.1f}x'}", 1,
+        put(f"VIEW   {stream_name}  (TAB to switch)", 1, (180, 140, 50))
+        put(f"{'PAUSED' if paused else f'SPEED {speed:.1f}x'}", 2,
             (80, 80, 255) if paused else (220, 180, 50))
-        put(f"TIME   {data.get('timestamp','')[:19]}", 2, (160, 160, 160))
+        put(f"TIME   {data.get('timestamp', '')[:19]}", 3, (160, 160, 160))
 
-        put("─── AGV ───────────────────", 4, (100, 180, 255))
-        put(f"Grid pos  row={data.get('agv_grid_row','?')}  col={data.get('agv_grid_col','?')}", 5)
-        put(f"Angle     {data.get('agv_angle','?')}°", 6)
+        put("─── AGV ───────────────────", 5, (100, 180, 255))
+        put(f"Grid pos  row={data.get('agv_grid_row','?')}  col={data.get('agv_grid_col','?')}", 6)
+        put(f"Angle     {data.get('agv_angle','?')}°", 7)
+        put(f"At goal   {data.get('at_goal','?')}", 8,
+            (50, 255, 50) if data.get("at_goal") == "True" else (220, 220, 220))
 
-        put("─── PATH ──────────────────", 9, (100, 180, 255))
-        put(f"Length    {data.get('path_length','?')} cells", 10)
-        put(f"Target    row={data.get('target_cell_row','?')}  col={data.get('target_cell_col','?')}", 11)
-        put(f"T.angle   {data.get('target_angle','?')}°", 12)
-        put(f"T.dist    {data.get('target_distance','?')} px", 13)
+        put("─── PATH ──────────────────", 10, (100, 180, 255))
+        put(f"Length    {data.get('path_length','?')} cells", 11)
+        put(f"Target    row={data.get('target_cell_row','?')}  col={data.get('target_cell_col','?')}", 12)
+        put(f"T.angle   {data.get('target_angle','?')}°", 13)
+        put(f"T.dist    {data.get('target_distance','?')} px", 14)
 
-        put("─── STEERING ──────────────", 15, (100, 180, 255))
-        put(f"Turn amt  {data.get('turn_amount','?')}°", 16)
+        put("─── STEERING ──────────────", 16, (100, 180, 255))
+        put(f"Turn amt  {data.get('turn_amount','?')}°", 17)
         action = data.get("action", "none")
         color  = (50, 200, 50) if action == "move" else (50, 100, 255) if action == "rotate" else (160,160,160)
-        put(f"Action    {action}  ({data.get('action_value','?')})", 17, color)
+        put(f"Action    {action}  ({data.get('action_value','?')})", 18, color)
 
-        put("─── FIELD ─────────────────", 19, (100, 180, 255))
-        put(f"Blue lines  {data.get('blue_lines_found','?')}", 20)
-        put(f"Markers     {data.get('marker_ids_visible','?')}", 21)
+        put("─── FIELD ─────────────────", 20, (100, 180, 255))
+        put(f"Blue lines  {data.get('blue_lines_found','?')}", 21)
+        put(f"Markers     {data.get('marker_ids_visible','?')}", 22)
 
-        put("─── CONTROLS ──────────────", 23, (130, 130, 130))
-        put("SPACE pause  ←/→ step", 24, (130, 130, 130))
-        put("+/- speed    Q quit",   25, (130, 130, 130))
+        put("─── CONTROLS ──────────────", 24, (130, 130, 130))
+        put("SPACE pause  TAB stream",   25, (130, 130, 130))
+        put("←/→ step  +/- speed  Q quit", 26, (130, 130, 130))
 
         return frame
 
     def play(self):
         """Starts the interactive replay window."""
-        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps          = self.meta.get("fps", 20)
-        frame_idx    = 0
-        paused       = False
-        speed        = 1.0
-
-        # Seek to a specific frame
-        def seek(idx):
-            idx = max(0, min(idx, total_frames - 1))
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            return idx
+        total  = self._total_frames()
+        fps    = self.meta.get("fps", 20)
+        idx    = 0
+        paused = False
+        speed  = 1.0
 
         while True:
+            active_name = self.stream_names[self.active_stream]
+
             if not paused:
-                ret, frame = self.cap.read()
-                if not ret:
+                # Read the active stream's next frame
+                frame = self._read_frame(active_name)
+
+                # Advance (and discard) all other streams to stay in sync
+                for name in self.stream_names:
+                    if name != active_name:
+                        self.caps[name].read()
+
+                if frame is None:
                     print("End of replay.")
                     break
 
-                current_idx = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                idx  = int(self.caps[active_name].get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                data = self.frames_data[idx] if idx < len(self.frames_data) else {}
 
-                # Match CSV row to this frame
-                data = self.frames_data[current_idx] if current_idx < len(self.frames_data) else {}
-
-                annotated = self._draw_overlay(frame, data, current_idx, total_frames, paused, speed)
+                annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name)
                 cv2.imshow("AGV Replay", annotated)
-                frame_idx = current_idx
 
                 delay = max(1, int((1000 / fps) / speed))
             else:
-                delay = 30  # just poll for keypresses while paused
+                delay = 30
 
             key = cv2.waitKey(delay) & 0xFF
 
-            if key == ord('q') or key == 27:        # Q or ESC — quit
+            if key == ord('q') or key == 27:           # Q / ESC — quit
                 break
-            elif key == ord(' '):                    # SPACE — pause/resume
+            elif key == ord(' '):                       # SPACE — pause/resume
                 paused = not paused
-            elif key == 83 or key == ord('d'):       # RIGHT or D — step forward
-                paused    = True
-                frame_idx = seek(frame_idx + 1)
-                ret, frame = self.cap.read()
-                if ret:
-                    data      = self.frames_data[frame_idx] if frame_idx < len(self.frames_data) else {}
-                    annotated = self._draw_overlay(frame, data, frame_idx, total_frames, paused, speed)
+            elif key == 9:                              # TAB — switch stream
+                self.active_stream = (self.active_stream + 1) % len(self.stream_names)
+                # Re-show the current frame in the new stream without advancing
+                self._seek_all(idx)
+                frame = self._read_frame(self.stream_names[self.active_stream])
+                if frame is not None:
+                    data      = self.frames_data[idx] if idx < len(self.frames_data) else {}
+                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed,
+                                                   self.stream_names[self.active_stream])
                     cv2.imshow("AGV Replay", annotated)
-            elif key == 81 or key == ord('a'):       # LEFT or A — step back
-                paused    = True
-                frame_idx = seek(max(0, frame_idx - 1))
-                ret, frame = self.cap.read()
-                if ret:
-                    data      = self.frames_data[frame_idx] if frame_idx < len(self.frames_data) else {}
-                    annotated = self._draw_overlay(frame, data, frame_idx, total_frames, paused, speed)
+            elif key == 83 or key == ord('d'):          # RIGHT / D — step forward
+                paused = True
+                idx    = self._seek_all(idx + 1)
+                frame  = self._read_frame(self.stream_names[self.active_stream])
+                if frame is not None:
+                    data      = self.frames_data[idx] if idx < len(self.frames_data) else {}
+                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name)
                     cv2.imshow("AGV Replay", annotated)
-            elif key in (ord('+'), ord('=')):        # + — speed up
+            elif key == 81 or key == ord('a'):          # LEFT / A — step back
+                paused = True
+                idx    = self._seek_all(max(0, idx - 1))
+                frame  = self._read_frame(self.stream_names[self.active_stream])
+                if frame is not None:
+                    data      = self.frames_data[idx] if idx < len(self.frames_data) else {}
+                    annotated = self._draw_overlay(frame, data, idx, total, paused, speed, active_name)
+                    cv2.imshow("AGV Replay", annotated)
+            elif key in (ord('+'), ord('=')):           # + — speed up
                 speed = min(speed + 0.25, 4.0)
-            elif key in (ord('-'), ord('_')):        # - — slow down
+            elif key in (ord('-'), ord('_')):           # - — slow down
                 speed = max(speed - 0.25, 0.25)
 
-        self.cap.release()
+        for cap in self.caps.values():
+            cap.release()
         cv2.destroyAllWindows()
 
 
@@ -346,25 +427,30 @@ class Player:
 #
 #   from replay import Recorder
 #
-#   recorder = Recorder(fps=20, resolution=(WARP_WIDTH, WARP_HEIGHT))
+#   recorder = Recorder(fps=20)
 #   recorder.start()
 #
 #   while True:
 #       ...all your existing code...
 #
 #       recorder.record_frame(
-#           frame          = warped,
-#           agv_pos        = agv_pos,
-#           agv_angle      = agv_angle,
-#           target_angle   = target_angle,
-#           target_distance= target_distance,
-#           target_cell    = target_cell,
-#           turn_amount    = turn_amount,
-#           action         = action,
-#           action_value   = action_value,
-#           path           = path,
-#           lines          = lines,
-#           marker_centers = cf.marker_centers,
+#           frames = {
+#               "warped": warped,   # annotated top-down view
+#               "raw":    frame,    # original camera frame
+#               "mask":   mask,     # blue line mask (grayscale OK)
+#           },
+#           agv_pos         = agv_pos,
+#           agv_angle       = agv_angle,
+#           target_angle    = target_angle,
+#           target_distance = target_distance,
+#           target_cell     = target_cell,
+#           turn_amount     = turn_amount,
+#           action          = action,
+#           action_value    = action_value,
+#           path            = path,
+#           lines           = lines,
+#           marker_centers  = cf.marker_centers,
+#           at_goal         = pa.is_at_goal(agv_pos, grid),
 #       )
 #
 #   recorder.stop()
@@ -373,7 +459,6 @@ class Player:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        # List available sessions if no argument given
         sessions_root = "sessions"
         if not os.path.exists(sessions_root):
             print("No sessions folder found. Run main.py first to record a session.")
