@@ -6,6 +6,7 @@ from replay import Recorder
 from config import *
 
 turn_counter = 0
+agv_reachable = True
 
 # --- Start logger (writes to a "logs/" subfolder) ---
 if LOGGING_ENABLED:
@@ -23,6 +24,7 @@ except:
     # If the AGV isn't connected (e.g. testing the vision pipeline only),
     # don't crash — just continue without drive control
     print("No AGV connection")
+    agv_reachable = False
 
 # --- Main loop: runs once per camera frame ---
 while True:
@@ -93,6 +95,8 @@ while True:
     else:
         segment = None
         print("AGV marker not detected, skipping steering this frame")
+        if agv_reachable:
+            d.move_mm(100)
 
     # 11. If we have a valid steering target, decide whether to turn or drive forward
     if segment is not None:
@@ -102,7 +106,7 @@ while True:
         # Get the AGV's current heading from its marker orientation
         agv_dir = cf.get_marker_direction(AGV_MARKER_ID)
 
-        if agv_dir is not None:
+        if agv_dir is not None and agv_reachable:
             turn_counter += 1
 
             current_angle = agv_dir[0]
@@ -120,7 +124,10 @@ while True:
                     d.rotate(turn_amount * 0.9)  # 0.9 = slight damping to avoid overshooting
                 else:
                     # Heading is close enough — drive forward towards the target
-                    d.move_mm(distance * d.PIXEL_PER_MM)
+                    d.move_mm(distance * PIXEL_PER_MM)
+    elif agv_reachable:
+        d.move_mm(100)
+
 
     # --- Log this frame ---
     if LOGGING_ENABLED:
@@ -170,4 +177,6 @@ if REPLAY_ENABLED:
 
 cf.cap.release()
 cf.cv2.destroyAllWindows()
-d.disable_wheels()
+
+if agv_reachable:
+    d.disable_wheels()
