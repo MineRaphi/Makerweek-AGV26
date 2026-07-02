@@ -117,7 +117,7 @@ while True:
             turn_amount = (turn_amount + 180) % 360 - 180
             print(f"Direction off by: {turn_amount:.1f}°")
 
-            if turn_counter == 3:
+            if turn_counter == 2:
                 turn_counter = 0
                 # If heading is off by more than 5°, rotate to correct it first
                 if turn_amount > 5 or turn_amount < -5:
