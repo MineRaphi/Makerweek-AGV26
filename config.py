@@ -25,7 +25,7 @@ WARP_WIDTH = 2000
 WARP_HEIGHT = 1300
 
 # --- AGV HTTP API endpoint ---
-AGV_BASE_URL = "http://172.17.1.54/api/agv"
+AGV_BASE_URL = "http://172.17.1.33/api/agv"
 AGV_API_KEY = "supersecretAPIkey"
 
 # --- Physical robot dimensions (in mm) ---
